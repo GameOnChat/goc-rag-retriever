@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
-import { CircuitBreakerProtected } from 'nest-circuit-breaker';
+import { CircuitBreakerProtected } from 'nest-circuitbreaker';
 import pRetry from 'p-retry';
 
 export interface ChunkRow {
