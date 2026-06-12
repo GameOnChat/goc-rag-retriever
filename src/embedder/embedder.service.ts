@@ -13,7 +13,7 @@ export class EmbedderService implements OnModuleInit {
     this.openai = new OpenAI({
       apiKey: this.config.getOrThrow<string>('OPENAI_API_KEY'),
     });
-    this.dimensions = this.config.get<number>('EMBEDDING_DIMENSIONS', 384);
+    this.dimensions = parseInt(this.config.get<string>('EMBEDDING_DIMENSIONS', '384'), 10);
   }
 
   async embedQuery(text: string): Promise<number[]> {
