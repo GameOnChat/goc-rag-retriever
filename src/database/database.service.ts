@@ -1,7 +1,7 @@
 import { Injectable, OnModuleInit, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { Pool } from 'pg';
-import { CircuitBreakerProtected } from 'nest-circuitbreaker';
+import CircuitBreaker from 'opossum';
 import pRetry from 'p-retry';
 
 export interface ChunkRow {
@@ -13,6 +13,7 @@ export interface ChunkRow {
 @Injectable()
 export class DatabaseService implements OnModuleInit, OnModuleDestroy {
   private pool!: Pool;
+  private breaker!: CircuitBreaker;
 
   constructor(private readonly config: ConfigService) {}
 
@@ -24,24 +25,29 @@ export class DatabaseService implements OnModuleInit, OnModuleDestroy {
       password: this.config.getOrThrow<string>('POSTGRES_PASSWORD'),
       port: this.config.get<number>('POSTGRES_PORT', 5432),
     });
+
+    this.breaker = new CircuitBreaker(
+      (embedding: number[], topK: number, gameId?: number) =>
+        this.executeSearch(embedding, topK, gameId),
+      {
+        timeout: 5000,
+        errorThresholdPercentage: 50,
+        resetTimeout: 30000,
+        volumeThreshold: 5,
+      },
+    );
   }
 
   async onModuleDestroy(): Promise<void> {
     await this.pool.end();
   }
 
-  @CircuitBreakerProtected({
-    timeout: 5000,
-    circuitBreakerErrorThresholdPercentage: 50,
-    circuitBreakerSleepWindowInMilliseconds: 30000,
-    circuitBreakerRequestVolumeThreshold: 5,
-  })
   async searchChunks(
     embedding: number[],
     topK = 5,
     gameId?: number,
   ): Promise<ChunkRow[]> {
-    return pRetry(() => this.executeSearch(embedding, topK, gameId), {
+    return pRetry(() => this.breaker.fire(embedding, topK, gameId) as Promise<ChunkRow[]>, {
       retries: 3,
       minTimeout: 200,
       factor: 2,
